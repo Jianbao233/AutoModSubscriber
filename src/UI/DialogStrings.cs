@@ -15,6 +15,15 @@ internal static class DialogStrings
         {
             try
             {
+                // 优先用游戏内语言（玩家在设置里选的）
+                var lang = MegaCrit.Sts2.Core.Localization.LocManager.Instance?.Language;
+                if (!string.IsNullOrEmpty(lang))
+                    return lang!.StartsWith("zh", System.StringComparison.OrdinalIgnoreCase);
+            }
+            catch { /* LocManager 可能尚未初始化，回退 */ }
+
+            try
+            {
                 var loc = OS.GetLocale() ?? "";
                 return loc.StartsWith("zh", System.StringComparison.OrdinalIgnoreCase);
             }
