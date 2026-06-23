@@ -1,0 +1,11 @@
+{
+  "id": "AutoModSubscriber",
+  "pck_name": "AutoModSubscriber",
+  "version": "0.1.0",
+  "name": "Auto Mod Subscriber",
+  "author": "@Bilibili我叫煎包",
+  "description": "When joining a multiplayer lobby with mod mismatch, automatically subscribe to missing Steam Workshop mods, and provide a checkbox list to disable local extra mods. Works best when host also installs this mod.",
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": false
+}

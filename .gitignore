@@ -1,0 +1,12 @@
+*.dll
+*.pdb
+*.runtimeconfig.json
+*.deps.json
+bin/
+obj/
+.godot/
+.vs/
+build/
+toRelease/
+torelease/
+release/
