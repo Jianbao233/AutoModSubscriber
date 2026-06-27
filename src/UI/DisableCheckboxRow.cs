@@ -24,7 +24,7 @@ public partial class DisableCheckboxRow : HBoxContainer
 
         row._cb = new CheckBox
         {
-            ButtonPressed = false,
+            ButtonPressed = true,
         };
         row.AddChild(row._cb);
 

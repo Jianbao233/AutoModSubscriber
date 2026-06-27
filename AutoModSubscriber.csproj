@@ -10,9 +10,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <Version>0.1.1</Version>
-    <FileVersion>0.1.1</FileVersion>
-    <AssemblyVersion>0.1.1</AssemblyVersion>
+    <Version>0.1.2</Version>
+    <FileVersion>0.1.2</FileVersion>
+    <AssemblyVersion>0.1.2</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

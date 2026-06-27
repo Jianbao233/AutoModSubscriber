@@ -149,6 +149,7 @@ public partial class AutoSubscribeDialog : Control
                 ParseIdVersion(name, out var id, out _);
                 ModWorkshopMap.TryGet(id, out var fileId);
                 var row = ModRow.Build(name, id, fileId);
+                row.OnSingleSubscribe = OnSingleSubscribeRequested;
                 vbox.AddChild(row);
                 _subscribeRows.Add(row);
             }
@@ -263,10 +264,15 @@ public partial class AutoSubscribeDialog : Control
 
         var jobs = WorkshopSubscriber.Instance.Submit(items);
 
-        // 持续轮询直到全部 terminal
         _pollTimer.Start();
 
         _ = WaitAndFinishAsync(jobs);
+    }
+
+    private void OnSingleSubscribeRequested()
+    {
+        if (!_subscribeInProgress)
+            _pollTimer.Start();
     }
 
     private async System.Threading.Tasks.Task WaitAndFinishAsync(IReadOnlyList<SubscribeJob> jobs)

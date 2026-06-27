@@ -61,6 +61,10 @@ internal static class DialogStrings
         "在工坊搜索",
         "Open Workshop");
 
+    public static string BtnSubscribeOne => Pick(
+        "订阅",
+        "Subscribe");
+
     public static string StatePending       => Pick("待处理",    "Pending");
     public static string StateSubscribing   => Pick("订阅中",    "Subscribing");
     public static string StateDownloading   => Pick("下载中",    "Downloading");

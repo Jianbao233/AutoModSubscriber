@@ -62,9 +62,8 @@ internal static class HostInitialInfoSidecarPatch
 
         var subscribedIndex = BuildSubscribedManifestIndex();
 
-        // 遍历所有 Loaded mod，把 gameplay-relevant 的全部登记进 sidecar，
-        // 即使 fileId=0（无法订阅）也写入，方便客机区分"host 装了但非 workshop"
-        // 与"host 没装本 mod"。
+        // 遍历所有 Loaded mod，无差别登记（不再过滤 affectsGameplay），
+        // 让客机能拿到 affectsGameplay=false 的前置 mod 的 workshopId。
         foreach (var mod in ModManager.Mods)
         {
             string? id = mod.manifest?.id;
@@ -73,10 +72,6 @@ internal static class HostInitialInfoSidecarPatch
 
             // 自己 (AutoModSubscriber) 无需登记
             if (id == ModuleInit.ModId) continue;
-
-            // 只关心 gameplay-relevant 的，否则即使客机缺也不会断连
-            bool affectsGameplay = mod.manifest?.affectsGameplay ?? true;
-            if (!affectsGameplay) continue;
 
             ulong fileId = 0;
             if (mod.modSource == ModSource.SteamWorkshop)
@@ -89,6 +84,25 @@ internal static class HostInitialInfoSidecarPatch
             }
 
             result[id!] = fileId;
+        }
+
+        // 第二遍：收集所有 Loaded mod 的 dependencies（前置 mod）
+        foreach (var mod in ModManager.Mods)
+        {
+            if (mod.manifest?.dependencies == null) continue;
+            if (mod.state != ModLoadState.Loaded) continue;
+
+            foreach (var dep in mod.manifest.dependencies)
+            {
+                if (string.IsNullOrEmpty(dep.id)) continue;
+                if (result.ContainsKey(dep.id)) continue;
+
+                ulong fid = 0;
+                if (subscribedIndex.TryGetValue(dep.id, out var idx))
+                    fid = idx;
+
+                result[dep.id] = fid;
+            }
         }
 
         return result;

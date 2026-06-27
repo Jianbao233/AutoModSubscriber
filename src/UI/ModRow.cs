@@ -5,17 +5,22 @@ using Godot;
 namespace AutoModSubscriber.UI;
 
 /// <summary>
-/// 区块 1 的单行：mod 图标占位 + 名字 + 状态文字 + 进度条。
-/// 通过纯代码构造 Control 树。
+/// 区块 1 的单行：mod 名字 + 状态文字 + 进度条 + 订阅按钮 + 打开工坊按钮。
 /// </summary>
 public partial class ModRow : HBoxContainer
 {
     public string ManifestId { get; private set; } = "";
     public ulong FileId { get; private set; }
 
+    /// <summary>
+    /// 当用户点"订阅"按钮时触发，由 Dialog 挂载。
+    /// </summary>
+    public Action? OnSingleSubscribe;
+
     private Label _name = null!;
     private Label _status = null!;
     private ProgressBar _bar = null!;
+    private Button _subscribeBtn = null!;
     private Button _openBtn = null!;
 
     public static ModRow Build(string displayName, string manifestId, ulong fileId)
@@ -38,7 +43,7 @@ public partial class ModRow : HBoxContainer
 
         row._bar = new ProgressBar
         {
-            CustomMinimumSize = new Vector2(160, 18),
+            CustomMinimumSize = new Vector2(120, 18),
             MaxValue = 100,
             ShowPercentage = false,
             SizeFlagsVertical = SizeFlags.ShrinkCenter,
@@ -48,15 +53,22 @@ public partial class ModRow : HBoxContainer
 
         row._status = new Label
         {
-            CustomMinimumSize = new Vector2(120, 0),
+            CustomMinimumSize = new Vector2(100, 0),
             HorizontalAlignment = HorizontalAlignment.Right,
         };
         row.AddChild(row._status);
 
+        row._subscribeBtn = new Button
+        {
+            Text = DialogStrings.BtnSubscribeOne,
+            Visible = false,
+        };
+        row._subscribeBtn.Pressed += row.OnSubscribePressed;
+        row.AddChild(row._subscribeBtn);
+
         row._openBtn = new Button
         {
             Text = DialogStrings.BtnOpenWorkshop,
-            Visible = false,
         };
         row._openBtn.Pressed += row.OnOpenWorkshopPressed;
         row.AddChild(row._openBtn);
@@ -81,7 +93,7 @@ public partial class ModRow : HBoxContainer
         {
             _status.Text = DialogStrings.StateNoWorkshopId;
             _bar.Visible = false;
-            _openBtn.Visible = true;
+            _subscribeBtn.Visible = false;
             return;
         }
 
@@ -102,8 +114,15 @@ public partial class ModRow : HBoxContainer
             _bar.Value = 100;
         }
 
-        _openBtn.Visible = state == SubscribeJobState.Failed
-                        || state == SubscribeJobState.TimedOut;
+        // 订阅按钮只在 Pending 且 fileId 有效时显示
+        _subscribeBtn.Visible = state == SubscribeJobState.Pending;
+    }
+
+    private void OnSubscribePressed()
+    {
+        if (FileId == 0) return;
+        WorkshopSubscriber.Instance.Submit(new[] { (ManifestId, FileId) });
+        OnSingleSubscribe?.Invoke();
     }
 
     private void OnOpenWorkshopPressed()
