@@ -1,17 +1,24 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AutoModSubscriber.Protocol;
 
 /// <summary>
-/// 全局静态 Map：manifest id -> Steam Workshop PublishedFileId。
+/// 全局静态 Map：manifest id -> (Steam Workshop PublishedFileId, dependencies)。
 ///
 /// 由 <see cref="ClientInitialInfoSidecarPatch"/> 在客机收到 host
 /// 的 InitialGameInfoMessage 时填充；由 UI 层在弹订阅对话框时读取。
 /// </summary>
 public static class ModWorkshopMap
 {
+    public sealed class ModEntry
+    {
+        public ulong FileId;
+        public List<string> Dependencies = new();
+    }
+
     private static readonly object _gate = new();
-    private static readonly Dictionary<string, ulong> _map = new();
+    private static readonly Dictionary<string, ModEntry> _map = new();
     private static bool _hostHasMod;
 
     public static int Count
@@ -21,14 +28,13 @@ public static class ModWorkshopMap
 
     /// <summary>
     /// host 端是否安装了 AutoModSubscriber。
-    /// 由 sidecar 中的哨兵 key 决定，不依赖具体 mod 映射数量。
     /// </summary>
     public static bool HostHasMod
     {
         get { lock (_gate) return _hostHasMod; }
     }
 
-    public static void Replace(IDictionary<string, ulong> entries, bool hostHasMod)
+    public static void Replace(IDictionary<string, ModEntry> entries, bool hostHasMod)
     {
         lock (_gate)
         {
@@ -36,6 +42,17 @@ public static class ModWorkshopMap
             foreach (var kv in entries) _map[kv.Key] = kv.Value;
             _hostHasMod = hostHasMod;
         }
+    }
+
+    /// <summary>
+    /// 旧接口兼容：只写 fileId，无 deps。
+    /// </summary>
+    public static void Replace(IDictionary<string, ulong> entries, bool hostHasMod)
+    {
+        var dict = new Dictionary<string, ModEntry>(entries.Count);
+        foreach (var kv in entries)
+            dict[kv.Key] = new ModEntry { FileId = kv.Value };
+        Replace(dict, hostHasMod);
     }
 
     public static void Clear()
@@ -49,11 +66,28 @@ public static class ModWorkshopMap
 
     public static bool TryGet(string manifestId, out ulong fileId)
     {
-        lock (_gate) return _map.TryGetValue(manifestId, out fileId);
+        lock (_gate)
+        {
+            if (_map.TryGetValue(manifestId, out var entry))
+            {
+                fileId = entry.FileId;
+                return true;
+            }
+            fileId = 0;
+            return false;
+        }
     }
 
-    public static Dictionary<string, ulong> Snapshot()
+    public static bool TryGetEntry(string manifestId, out ModEntry? entry)
     {
-        lock (_gate) return new Dictionary<string, ulong>(_map);
+        lock (_gate)
+        {
+            return _map.TryGetValue(manifestId, out entry);
+        }
+    }
+
+    public static Dictionary<string, ModEntry> Snapshot()
+    {
+        lock (_gate) return new Dictionary<string, ModEntry>(_map);
     }
 }

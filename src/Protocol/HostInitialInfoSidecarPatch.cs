@@ -40,14 +40,14 @@ internal static class HostInitialInfoSidecarPatch
             var map = BuildIdToFileIdMap();
 
             // 永远写哨兵，让客机知道 host 装了本 mod
-            map[SidecarCodec.HostSentinelKey] = 1;
+            map[SidecarCodec.HostSentinelKey] = (1, null);
 
             __result.otherMods ??= new List<string>();
             string encoded = SidecarCodec.Encode(map);
             __result.otherMods.Add(encoded);
 
-            int withFileId = map.Count(kv => kv.Key != SidecarCodec.HostSentinelKey && kv.Value != 0);
-            int withoutFileId = map.Count(kv => kv.Key != SidecarCodec.HostSentinelKey && kv.Value == 0);
+            int withFileId = map.Count(kv => kv.Key != SidecarCodec.HostSentinelKey && kv.Value.FileId != 0);
+            int withoutFileId = map.Count(kv => kv.Key != SidecarCodec.HostSentinelKey && kv.Value.FileId == 0);
             GD.Print($"{ModuleInit.LogTag} Host sidecar attached: {withFileId} with fileId, {withoutFileId} without");
         }
         catch (Exception ex)
@@ -56,41 +56,51 @@ internal static class HostInitialInfoSidecarPatch
         }
     }
 
-    private static Dictionary<string, ulong> BuildIdToFileIdMap()
+    private static Dictionary<string, (ulong FileId, List<string>? Deps)> BuildIdToFileIdMap()
     {
-        var result = new Dictionary<string, ulong>();
+        var result = new Dictionary<string, (ulong, List<string>?)>();
 
         var subscribedIndex = BuildSubscribedManifestIndex();
 
-        // 遍历所有 Loaded mod，无差别登记（不再过滤 affectsGameplay），
-        // 让客机能拿到 affectsGameplay=false 的前置 mod 的 workshopId。
+        // 第一遍：只登记 gameplay-relevant 的 Loaded mod
         foreach (var mod in ModManager.Mods)
         {
             string? id = mod.manifest?.id;
             if (string.IsNullOrEmpty(id)) continue;
             if (mod.state != ModLoadState.Loaded) continue;
-
-            // 自己 (AutoModSubscriber) 无需登记
             if (id == ModuleInit.ModId) continue;
+
+            bool affectsGameplay = mod.manifest?.affectsGameplay ?? true;
+            if (!affectsGameplay) continue;
 
             ulong fileId = 0;
             if (mod.modSource == ModSource.SteamWorkshop)
-            {
                 fileId = ExtractFileIdFromPath(mod.path);
-            }
             if (fileId == 0 && subscribedIndex.TryGetValue(id!, out var idx))
-            {
                 fileId = idx;
+
+            // 提取这个 mod 的 dependencies id 列表
+            List<string>? deps = null;
+            if (mod.manifest?.dependencies != null && mod.manifest.dependencies.Count > 0)
+            {
+                deps = new List<string>();
+                foreach (var dep in mod.manifest.dependencies)
+                    if (!string.IsNullOrEmpty(dep.id))
+                        deps.Add(dep.id);
             }
 
-            result[id!] = fileId;
+            result[id!] = (fileId, deps);
         }
 
-        // 第二遍：收集所有 Loaded mod 的 dependencies（前置 mod）
+        // 第二遍：只收集上面已登记的 gameplay mod 的 dependencies（前置 mod）
+        var gameplayModIds = new HashSet<string>(result.Keys);
         foreach (var mod in ModManager.Mods)
         {
             if (mod.manifest?.dependencies == null) continue;
             if (mod.state != ModLoadState.Loaded) continue;
+
+            string? modId = mod.manifest?.id;
+            if (modId == null || !gameplayModIds.Contains(modId)) continue;
 
             foreach (var dep in mod.manifest.dependencies)
             {
@@ -101,7 +111,8 @@ internal static class HostInitialInfoSidecarPatch
                 if (subscribedIndex.TryGetValue(dep.id, out var idx))
                     fid = idx;
 
-                result[dep.id] = fid;
+                // 前置 mod 本身没有 deps 信息（或不需要再递归）
+                result[dep.id] = (fid, null);
             }
         }
 

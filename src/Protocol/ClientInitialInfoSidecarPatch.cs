@@ -32,14 +32,14 @@ internal static class ClientInitialInfoSidecarPatch
                 return;
             }
 
-            Dictionary<string, ulong>? parsed = null;
+            Dictionary<string, (ulong FileId, List<string> Deps)>? parsed = null;
             bool hostHas = false;
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 string entry = list[i];
                 if (!SidecarCodec.IsSidecarEntry(entry)) continue;
 
-                if (SidecarCodec.TryDecodeFull(entry, out var map, out var sentinel))
+                if (SidecarCodec.TryDecodeWithDeps(entry, out var map, out var sentinel))
                 {
                     parsed = map;
                     hostHas = sentinel;
@@ -49,7 +49,11 @@ internal static class ClientInitialInfoSidecarPatch
 
             if (parsed != null)
             {
-                ModWorkshopMap.Replace(parsed, hostHas);
+                // 转换为 ModEntry 格式
+                var entries = new Dictionary<string, ModWorkshopMap.ModEntry>(parsed.Count);
+                foreach (var kv in parsed)
+                    entries[kv.Key] = new ModWorkshopMap.ModEntry { FileId = kv.Value.FileId, Dependencies = kv.Value.Deps };
+                ModWorkshopMap.Replace(entries, hostHas);
                 GD.Print($"{ModuleInit.LogTag} Client parsed sidecar: hostHas={hostHas}, {parsed.Count} mapping(s)");
             }
             // 没有 sidecar：保留 map，不打日志（buffered/重发会反复触发）

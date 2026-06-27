@@ -6,6 +6,7 @@ using AutoModSubscriber.Protocol;
 using AutoModSubscriber.Subscribe;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
+using MegaCrit.Sts2.Core.Modding;
 
 namespace AutoModSubscriber.UI;
 
@@ -138,11 +139,21 @@ public partial class AutoSubscribeDialog : Control
         };
         scroll.AddChild(vbox);
 
-        if (missing == null || missing.Count == 0)
+        // 收集客机已加载的 mod id 集合
+        var localLoadedIds = new HashSet<string>();
+        try
         {
-            vbox.AddChild(new Label { Text = DialogStrings.EmptySection });
+            foreach (var mod in MegaCrit.Sts2.Core.Modding.ModManager.Mods)
+            {
+                var mid = mod.manifest?.id;
+                if (!string.IsNullOrEmpty(mid)) localLoadedIds.Add(mid!);
+            }
         }
-        else
+        catch { /* ignore */ }
+
+        var addedIds = new HashSet<string>();
+
+        if (missing != null && missing.Count > 0)
         {
             foreach (var name in missing)
             {
@@ -152,7 +163,29 @@ public partial class AutoSubscribeDialog : Control
                 row.OnSingleSubscribe = OnSingleSubscribeRequested;
                 vbox.AddChild(row);
                 _subscribeRows.Add(row);
+                addedIds.Add(id);
+
+                // 检查这个 mod 的 dependencies（前置），如果客机没装且在 sidecar 里有 fileId，追加一行
+                if (ModWorkshopMap.TryGetEntry(id, out var entry) && entry != null && entry.Dependencies != null)
+                {
+                    foreach (var depId in entry.Dependencies)
+                    {
+                        if (addedIds.Contains(depId)) continue;
+                        if (localLoadedIds.Contains(depId)) continue;
+
+                        ModWorkshopMap.TryGet(depId, out var depFileId);
+                        var depRow = ModRow.Build(depId, depId, depFileId);
+                        depRow.OnSingleSubscribe = OnSingleSubscribeRequested;
+                        vbox.AddChild(depRow);
+                        _subscribeRows.Add(depRow);
+                        addedIds.Add(depId);
+                    }
+                }
             }
+        }
+        else
+        {
+            vbox.AddChild(new Label { Text = DialogStrings.EmptySection });
         }
 
         var btnRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
