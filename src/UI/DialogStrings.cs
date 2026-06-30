@@ -91,8 +91,8 @@ internal static class DialogStrings
         "Subscribed {0} mod(s), {1} failed. Please restart the game before trying to join again.");
 
     public static string HintDisableDone => Pick(
-        "已禁用 {0} 个 mod，失败 {1} 个。重启游戏后生效。",
-        "Disabled {0} mod(s), {1} failed. Restart the game for the changes to take effect.");
+        "已禁用 {0} 个 mod，失败 {1} 个。重启游戏后生效。\n如需重新启用，请在标题界面 → 设置 → 模组设置中勾选对应模组，再重启游戏。",
+        "Disabled {0} mod(s), {1} failed. Restart the game for the changes to take effect.\nTo re-enable: Title → Settings → Mod Settings, check the box, then restart.");
 
     public static string EmptySection => Pick("（无）", "(none)");
 
