@@ -88,6 +88,14 @@ internal static class ClientModMismatchInterceptPatch
 
             if (reason != NetError.ModMismatch) return;
 
+            // JML 的可选联机功能标记需要由 JML 展示专用说明。
+            // 此时保留 JML Prefix 已生成的 popup，不再替换为自动订阅对话框。
+            if (JmcModLibCompat.ShouldHandle(netInfo))
+            {
+                GD.Print($"{ModuleInit.LogTag} ModMismatch routed to JmcModLib");
+                return;
+            }
+
             var extra = TryGetExtraInfo(netInfo);
             if (extra == null)
             {
