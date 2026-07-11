@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using AutoModSubscriber.Compat;
 using AutoModSubscriber.Subscribe;
 using Godot;
 using HarmonyLib;
@@ -113,14 +114,11 @@ internal static class ClientModMismatchInterceptPatch
     {
         try
         {
-            var field = AccessTools.Field(typeof(NetErrorInfo), "_connectionExtraInfo");
-            if (field == null) return null;
-            object boxed = info;
-            return field.GetValue(boxed) as ConnectionFailureExtraInfo;
+            return NetErrorInfoCompat.GetConnectionExtraInfo(info);
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"{ModuleInit.LogTag} reflect _connectionExtraInfo failed: {ex}");
+            GD.PrintErr($"{ModuleInit.LogTag} reading ConnectionExtraInfo failed: {ex}");
             return null;
         }
     }
