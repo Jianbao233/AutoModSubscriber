@@ -20,6 +20,13 @@ namespace AutoModSubscriber.UI;
 [HarmonyPatch]
 internal static class ClientModMismatchInterceptPatch
 {
+    /// <summary>
+    /// 外部 mod（如联机大厅）可注册此回调来接管 ModMismatch 弹窗的 UI。
+    /// 返回 true 表示已处理，AMS 不再弹自己的 AutoSubscribeDialog；
+    /// 返回 false 或 null 时 AMS 使用默认 UI。
+    /// </summary>
+    public static Func<ConnectionFailureExtraInfo, bool>? ExternalDialogHandler;
+
     [HarmonyPrepare]
     public static bool Prepare(MethodBase? original)
     {
@@ -100,6 +107,18 @@ internal static class ClientModMismatchInterceptPatch
             if (extra == null)
             {
                 GD.Print($"{ModuleInit.LogTag} ModMismatch but no extraInfo, keep vanilla popup");
+                return;
+            }
+
+            // 外部 mod（如联机大厅）注册了 UI 接管回调时，优先让它处理
+            if (ExternalDialogHandler != null && ExternalDialogHandler(extra))
+            {
+                // 外部已处理，释放原 popup 并退出
+                if (__result is Godot.Node extNode)
+                {
+                    try { extNode.QueueFree(); } catch { /* ignore */ }
+                    __result = null;
+                }
                 return;
             }
 
