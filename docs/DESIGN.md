@@ -3,6 +3,8 @@
 > 客机进入房间时，若房主的 mod 列表与本机不一致，自动调用 Steam Workshop API 订阅本机缺失的 mod，并提供"我有 host 没有的 mod" 勾选禁用面板。
 >
 > 文档版本：v0.1（初稿，立项确认后落地）
+>
+> **状态说明（v0.110.0）**：本文件的早期架构草图保留历史推导；当前实际协议入口以 `README.md` 与 `docs/PLAN.md` 的 `NetHostGameService.SendMessage<InitialGameInfoMessage>` Prefix 为准。
 > 作者：`@Bilibili我叫煎包`
 > 目标游戏：Slay the Spire 2（Steam 正式版，AppID 2868840）
 

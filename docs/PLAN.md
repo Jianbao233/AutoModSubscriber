@@ -10,11 +10,11 @@
 - 无 ModConfig 配置项
 - 完成后由用户手动重启，不调 `OS.Execute` / `GetTree().Quit()`
 
-## 关键拦截点（已通过 SL2 侦察确认）
+## 关键拦截点（v0.110.0 已验证）
 
-- host 端：`MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby.InitialGameInfoMessage.Basic`，Postfix 改写返回值的 `otherMods`，追加一条 sidecar 条目
-- 客机解析：`InitialGameInfoMessage.Deserialize`，Postfix 从 `otherMods` 抽出 sidecar 写入静态 `ModWorkshopMap`，并把 sidecar 条目从 list 删除
-- 客机弹窗拦截：`MegaCrit.Sts2.Core.Nodes.CommonUi.NErrorPopup.Create(NetErrorInfo)`，Postfix；检测 `info.GetReason() == NetError.ModMismatch`，反射读 `NetErrorInfo._connectionExtraInfo` 拿到 `ConnectionFailureExtraInfo`，自挂 AutoSubscribeDialog 到主场景树，并把 `__result = null` 阻止原弹窗
+- host 端：`MegaCrit.Sts2.Core.Multiplayer.NetHostGameService.SendMessage<InitialGameInfoMessage>`，Prefix 在网络层序列化和容量计算前改写 `message.versionInfo.otherMods`，追加一条 sidecar 条目
+- 客机解析：`InitialGameInfoMessage.Deserialize`，Postfix 从 `versionInfo.otherMods` 抽出 sidecar 写入静态 `ModWorkshopMap`，并把 sidecar 条目从 list 删除；每个初始消息先清空上一房间的映射，缺失或损坏 sidecar 不能复用旧数据
+- 客机弹窗拦截：`MegaCrit.Sts2.Core.Nodes.CommonUi.NErrorPopup.Create(NetErrorInfo)`，Postfix；检测 `info.GetReason() == NetError.ModMismatch`，通过 `NetErrorInfoCompat` 读取 `ConnectionFailureExtraInfo`，自挂 AutoSubscribeDialog 到主场景树，并把 `__result = null` 阻止原弹窗
 - 持久化：禁用勾选后直接调 `SaveManager.Instance.SaveSettings()`，无需反射
 
 ## Sidecar 协议

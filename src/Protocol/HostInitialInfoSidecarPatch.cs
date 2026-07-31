@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
+using MegaCrit.Sts2.Core.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby;
 using Steamworks;
 
@@ -27,13 +29,25 @@ namespace AutoModSubscriber.Protocol;
 /// gameplayAffectingMods 完全不动，保证 vanilla 客机的 gameplay mod
 /// 比对逻辑不受影响。
 /// </summary>
-[HarmonyPatch(typeof(InitialGameInfoMessage), nameof(InitialGameInfoMessage.Basic))]
+[HarmonyPatch]
 internal static class HostInitialInfoSidecarPatch
 {
     private const uint AppId = 2868840;
 
-    [HarmonyPostfix]
-    public static void Postfix(ref InitialGameInfoMessage __result)
+    [HarmonyTargetMethod]
+    private static MethodBase TargetMethod()
+    {
+        var sendMessage = typeof(NetHostGameService)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Single(method => method.Name == nameof(NetHostGameService.SendMessage)
+                && method.IsGenericMethodDefinition
+                && method.GetParameters().Length == 2);
+
+        return sendMessage.MakeGenericMethod(typeof(InitialGameInfoMessage));
+    }
+
+    [HarmonyPrefix]
+    public static void Prefix(ref InitialGameInfoMessage message)
     {
         try
         {
@@ -42,9 +56,9 @@ internal static class HostInitialInfoSidecarPatch
             // 永远写哨兵，让客机知道 host 装了本 mod
             map[SidecarCodec.HostSentinelKey] = (1, null);
 
-            __result.otherMods ??= new List<string>();
-            string encoded = SidecarCodec.Encode(map);
-            __result.otherMods.Add(encoded);
+            var otherMods = message.versionInfo.otherMods ??= new List<string>();
+            otherMods.RemoveAll(SidecarCodec.IsSidecarEntry);
+            otherMods.Add(SidecarCodec.Encode(map));
 
             int withFileId = map.Count(kv => kv.Key != SidecarCodec.HostSentinelKey && kv.Value.FileId != 0);
             int withoutFileId = map.Count(kv => kv.Key != SidecarCodec.HostSentinelKey && kv.Value.FileId == 0);
@@ -79,12 +93,12 @@ internal static class HostInitialInfoSidecarPatch
             if (fileId == 0 && subscribedIndex.TryGetValue(id!, out var idx))
                 fileId = idx;
 
-            // 提取这个 mod 的 dependencies id 列表
+            var dependencies = mod.manifest?.dependencies;
             List<string>? deps = null;
-            if (mod.manifest?.dependencies != null && mod.manifest.dependencies.Count > 0)
+            if (dependencies is { Count: > 0 })
             {
                 deps = new List<string>();
-                foreach (var dep in mod.manifest.dependencies)
+                foreach (var dep in dependencies)
                     if (!string.IsNullOrEmpty(dep.id))
                         deps.Add(dep.id);
             }
@@ -96,13 +110,14 @@ internal static class HostInitialInfoSidecarPatch
         var gameplayModIds = new HashSet<string>(result.Keys);
         foreach (var mod in ModManager.Mods)
         {
-            if (mod.manifest?.dependencies == null) continue;
+            var dependencies = mod.manifest?.dependencies;
+            if (dependencies == null) continue;
             if (mod.state != ModLoadState.Loaded) continue;
 
             string? modId = mod.manifest?.id;
             if (modId == null || !gameplayModIds.Contains(modId)) continue;
 
-            foreach (var dep in mod.manifest.dependencies)
+            foreach (var dep in dependencies)
             {
                 if (string.IsNullOrEmpty(dep.id)) continue;
                 if (result.ContainsKey(dep.id)) continue;

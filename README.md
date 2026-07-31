@@ -31,7 +31,7 @@ The dialog UI automatically switches between Simplified Chinese and English base
 
 ### How it works
 
-The host's `InitialGameInfoMessage.Basic()` is Harmony-postfixed to append a base64-encoded sidecar entry to `otherMods`, containing a `{manifestId: workshopFileId}` map plus a sentinel key `__ams_host__`. The client extracts this sidecar before vanilla mod-list comparison, populates a static `ModWorkshopMap`, and the auto-subscribe dialog reads it to know each missing mod's Workshop file id.
+The host attaches a base64-encoded sidecar entry to `InitialGameInfoMessage.versionInfo.otherMods` in a Harmony Prefix for `NetHostGameService.SendMessage<InitialGameInfoMessage>`. This happens before the network layer calculates the packet size. The sidecar contains a `{manifestId: workshopFileId}` map plus a sentinel key `__ams_host__`. After deserializing the initial message, the client extracts and removes this sidecar before the vanilla mod-list comparison, populating a static `ModWorkshopMap` that the auto-subscribe dialog uses to find each missing mod's Workshop file id. Each initial message clears the prior room's mapping first, so a host without a valid sidecar cannot reuse stale Workshop IDs.
 
 Subscription uses Steamworks.NET (`SteamUGC.SubscribeItem` + persistent `Callback<ItemInstalled_t>` / `Callback<DownloadItemResult_t>`). Mods installed via Steam Workshop can be auto-subscribed; mods placed manually under `mods/` cannot, and the dialog clearly says so.
 
@@ -80,7 +80,7 @@ Requires .NET 9 SDK and the Slay the Spire 2 game install (for referenced DLLs u
 
 ### 工作原理
 
-房主端 Harmony Postfix `InitialGameInfoMessage.Basic()`，在 `otherMods` 末尾追加一条 base64 编码的 sidecar，内容是 `{manifestId: workshopFileId}` 映射以及一个哨兵 key `__ams_host__`。客机在原版模组比对之前解析这条 sidecar，把数据写入静态 `ModWorkshopMap`，弹窗据此知道每个缺失模组对应的工坊 file id。
+主机在 `NetHostGameService.SendMessage<InitialGameInfoMessage>` 的 Harmony Prefix 中，把 base64 编码的 sidecar 追加到 `InitialGameInfoMessage.versionInfo.otherMods`。该时机早于网络层计算数据包大小。sidecar 包含 `{manifestId: workshopFileId}` 映射以及哨兵 key `__ams_host__`。客机在初始消息反序列化后、原版模组比对前提取并移除 sidecar，将数据写入静态 `ModWorkshopMap`，弹窗据此知道每个缺失模组对应的工坊 file id。每个初始消息都会先清空上一房间的映射，因此未携带有效 sidecar 的房主不能复用旧的 Workshop ID。
 
 订阅走 Steamworks.NET（`SteamUGC.SubscribeItem` + 长期持有的 `Callback<ItemInstalled_t>` / `Callback<DownloadItemResult_t>`）。Steam 创意工坊安装的模组可以被自动订阅；手动放进 `mods/` 目录的模组不能自动订阅，弹窗会明确提示。
 
