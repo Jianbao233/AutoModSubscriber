@@ -20,6 +20,8 @@ After subscribing or disabling, **restart the game manually** before trying to j
 
 ### Compatibility
 
+This release targets the latest **public-beta v0.110.1** build. It requires game version `0.110.1` or later.
+
 | Host has this mod | Client has this mod | Behaviour |
 |---|---|---|
 | ✓ | ✓ | Full auto-subscribe + selective auto-disable |
@@ -68,6 +70,8 @@ Requires .NET 9 SDK and the Slay the Spire 2 game install (for referenced DLLs u
 订阅或禁用完成后，请**手动关闭并重启游戏**，再尝试重新加入房间。本模组永远不会主动重启游戏。
 
 ### 兼容性
+
+本次发布面向最新 **public-beta v0.110.1**，要求游戏版本至少为 `0.110.1`。
 
 | 房主装本模组 | 客机装本模组 | 行为 |
 |---|---|---|
