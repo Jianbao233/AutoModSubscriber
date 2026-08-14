@@ -2,21 +2,28 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Multiplayer;
-using MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby;
 using Steamworks;
 
 namespace AutoModSubscriber.Protocol;
 
 /// <summary>
-/// Host 侧：在 InitialGameInfoMessage.Basic() 返回之后，把
+/// Host 侧：在 PeerVersionInfo.LocalDefault() 返回之后，把
 /// (manifest id -&gt; workshopFileId) 映射编码成一条 sidecar，
 /// 追加到 otherMods 末尾。
+///
+/// v0.1.4 (v0.111.0 适配)：v0.111.0 重构了联机握手——
+/// InitialGameInfoMessage 移除了 versionInfo 字段，PeerVersionInfo
+/// 改为经 HandshakeManager 在握手阶段独立序列化发送（magic + Serialize）。
+/// 双方握手消息里的 mod 列表都来自 PeerVersionInfo.LocalDefault()，
+/// 因此 sidecar 挂载点从 InitialGameInfoMessage.versionInfo 迁移到这里。
+/// host / client / 单机的 LocalDefault() 都会挂 sidecar：实际联机时
+/// 双方握手消息互带 sidecar，对端 AMS 解析并移除；vanilla 对端仅把
+/// sidecar 条目当作一条 non-gameplay mod 差异（只 warn，不断连）。
 ///
 /// 映射来源（两路合并）：
 ///   1. ModManager.Mods 中 SteamWorkshop 来源的 mod，直接从 mod.path 切 fileId。
@@ -26,28 +33,16 @@ namespace AutoModSubscriber.Protocol;
 ///      或者 host 本地放了 mods/ 但同时也在 Steam 订阅了同名 mod）的项，
 ///      用此索引兜底补 fileId。
 ///
-/// gameplayAffectingMods 完全不动，保证 vanilla 客机的 gameplay mod
+/// gameplayAffectingMods 完全不动，保证 vanilla 对端的 gameplay mod
 /// 比对逻辑不受影响。
 /// </summary>
-[HarmonyPatch]
+[HarmonyPatch(typeof(PeerVersionInfo), nameof(PeerVersionInfo.LocalDefault))]
 internal static class HostInitialInfoSidecarPatch
 {
     private const uint AppId = 2868840;
 
-    [HarmonyTargetMethod]
-    private static MethodBase TargetMethod()
-    {
-        var sendMessage = typeof(NetHostGameService)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Single(method => method.Name == nameof(NetHostGameService.SendMessage)
-                && method.IsGenericMethodDefinition
-                && method.GetParameters().Length == 2);
-
-        return sendMessage.MakeGenericMethod(typeof(InitialGameInfoMessage));
-    }
-
-    [HarmonyPrefix]
-    public static void Prefix(ref InitialGameInfoMessage message)
+    [HarmonyPostfix]
+    public static void Postfix(ref PeerVersionInfo __result)
     {
         try
         {
@@ -56,7 +51,7 @@ internal static class HostInitialInfoSidecarPatch
             // 永远写哨兵，让客机知道 host 装了本 mod
             map[SidecarCodec.HostSentinelKey] = (1, null);
 
-            var otherMods = message.versionInfo.otherMods ??= new List<string>();
+            var otherMods = __result.otherMods ??= new List<string>();
             otherMods.RemoveAll(SidecarCodec.IsSidecarEntry);
             otherMods.Add(SidecarCodec.Encode(map));
 

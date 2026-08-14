@@ -20,7 +20,7 @@ After subscribing or disabling, **restart the game manually** before trying to j
 
 ### Compatibility
 
-This release targets the latest **public-beta v0.110.1** build. It requires game version `0.110.1` or later.
+This release targets the latest **public-beta v0.111.0** build. It requires game version `0.111.0` or later.
 
 | Host has this mod | Client has this mod | Behaviour |
 |---|---|---|
@@ -33,7 +33,7 @@ The dialog UI automatically switches between Simplified Chinese and English base
 
 ### How it works
 
-The host attaches a base64-encoded sidecar entry to `InitialGameInfoMessage.versionInfo.otherMods` in a Harmony Prefix for `NetHostGameService.SendMessage<InitialGameInfoMessage>`. This happens before the network layer calculates the packet size. The sidecar contains a `{manifestId: workshopFileId}` map plus a sentinel key `__ams_host__`. After deserializing the initial message, the client extracts and removes this sidecar before the vanilla mod-list comparison, populating a static `ModWorkshopMap` that the auto-subscribe dialog uses to find each missing mod's Workshop file id. Each initial message clears the prior room's mapping first, so a host without a valid sidecar cannot reuse stale Workshop IDs.
+The host attaches a base64-encoded sidecar entry to `PeerVersionInfo.otherMods` in a Harmony Postfix for `PeerVersionInfo.LocalDefault()`. Since v0.111.0 the mod list travels inside the handshake (magic bytes + serialized `PeerVersionInfo` via `HandshakeManager`), so the sidecar rides that handshake message. The sidecar contains a `{manifestId: workshopFileId}` map plus a sentinel key `__ams_host__`. After the client parses the remote handshake (`HandshakeManager.TryReadHandshakeMessage`), it extracts and removes this sidecar, populating a static `ModWorkshopMap` that the auto-subscribe dialog uses to find each missing mod's Workshop file id. Each handshake clears the prior room's mapping first, so a host without a valid sidecar cannot reuse stale Workshop IDs.
 
 Subscription uses Steamworks.NET (`SteamUGC.SubscribeItem` + persistent `Callback<ItemInstalled_t>` / `Callback<DownloadItemResult_t>`). Mods installed via Steam Workshop can be auto-subscribed; mods placed manually under `mods/` cannot, and the dialog clearly says so.
 
@@ -71,7 +71,7 @@ Requires .NET 9 SDK and the Slay the Spire 2 game install (for referenced DLLs u
 
 ### 兼容性
 
-本次发布面向最新 **public-beta v0.110.1**，要求游戏版本至少为 `0.110.1`。
+本次发布面向最新 **public-beta v0.111.0**，要求游戏版本至少为 `0.111.0`。
 
 | 房主装本模组 | 客机装本模组 | 行为 |
 |---|---|---|
@@ -84,7 +84,7 @@ Requires .NET 9 SDK and the Slay the Spire 2 game install (for referenced DLLs u
 
 ### 工作原理
 
-主机在 `NetHostGameService.SendMessage<InitialGameInfoMessage>` 的 Harmony Prefix 中，把 base64 编码的 sidecar 追加到 `InitialGameInfoMessage.versionInfo.otherMods`。该时机早于网络层计算数据包大小。sidecar 包含 `{manifestId: workshopFileId}` 映射以及哨兵 key `__ams_host__`。客机在初始消息反序列化后、原版模组比对前提取并移除 sidecar，将数据写入静态 `ModWorkshopMap`，弹窗据此知道每个缺失模组对应的工坊 file id。每个初始消息都会先清空上一房间的映射，因此未携带有效 sidecar 的房主不能复用旧的 Workshop ID。
+主机在 `PeerVersionInfo.LocalDefault()` 的 Harmony Postfix 中，把 base64 编码的 sidecar 追加到 `PeerVersionInfo.otherMods`。v0.111.0 起 mod 列表随握手消息传输（`HandshakeManager` 发送 magic + 序列化的 `PeerVersionInfo`），sidecar 因此随握手消息携带。sidecar 包含 `{manifestId: workshopFileId}` 映射以及哨兵 key `__ams_host__`。客机在解析远端握手消息（`HandshakeManager.TryReadHandshakeMessage`）后提取并移除 sidecar，将数据写入静态 `ModWorkshopMap`，弹窗据此知道每个缺失模组对应的工坊 file id。每次握手都会先清空上一房间的映射，因此未携带有效 sidecar 的房主不能复用旧的 Workshop ID。
 
 订阅走 Steamworks.NET（`SteamUGC.SubscribeItem` + 长期持有的 `Callback<ItemInstalled_t>` / `Callback<DownloadItemResult_t>`）。Steam 创意工坊安装的模组可以被自动订阅；手动放进 `mods/` 目录的模组不能自动订阅，弹窗会明确提示。
 

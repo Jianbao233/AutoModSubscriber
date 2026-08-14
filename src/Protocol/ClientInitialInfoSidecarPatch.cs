@@ -1,30 +1,53 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby;
+using MegaCrit.Sts2.Core.Multiplayer.Connection;
 
 namespace AutoModSubscriber.Protocol;
 
 /// <summary>
-/// 客机侧：在 InitialGameInfoMessage.Deserialize 之后扫描 versionInfo.otherMods，
-/// 找到 sidecar 条目则：
+/// 客机侧：在 HandshakeManager.TryReadHandshakeMessage 返回之后，
+/// 从握手结果里的远端 PeerVersionInfo.otherMods 扫描 sidecar 条目：
 ///   1. 把解码出的 (id -&gt; fileId) 写入 ModWorkshopMap
-///   2. 从 `versionInfo.otherMods` 中把 sidecar 条目移除，避免污染原版 non-gameplay
-///      mod 比对逻辑（虽然 vanilla 也只 warn 不断连接，但移除更干净）。
+///   2. 从 `otherMods` 中把 sidecar 条目移除，避免污染原版 non-gameplay
+///      mod 比对逻辑（虽然 vanilla 也只 warn 不断连，但移除更干净）。
 ///
-/// 注意：Deserialize 是 struct 的实例方法。Harmony 对 struct 实例方法
-/// 的 Postfix 需要 [HarmonyPatch] 在类型上 + ref __instance 参数。
+/// v0.1.4 (v0.111.0 适配)：v0.111.0 握手重构后，mod 列表不再随
+/// InitialGameInfoMessage 传输，而是作为 PeerVersionInfo 在握手阶段
+/// （HandshakeManager.TryReadHandshakeMessage）解析。本 patch 的目标
+/// 相应迁移到该方法；握手结果 HandshakeResult 携带远端 PeerVersionInfo。
+///
+/// 注意：TryReadHandshakeMessage 是 private 实例方法，返回 struct
+/// HandshakeResult —— Harmony Postfix 需 ref __result。本 patch 在
+/// host / client 两侧都会命中（各自解析对方握手消息）：client 从 host
+/// 的 sidecar 填 ModWorkshopMap 供弹窗使用；host 从 client 的 sidecar
+/// 提取后仅移除（无副作用）。
 /// </summary>
-[HarmonyPatch(typeof(InitialGameInfoMessage), nameof(InitialGameInfoMessage.Deserialize))]
+[HarmonyPatch]
 internal static class ClientInitialInfoSidecarPatch
 {
+    private static bool Prepare()
+    {
+        return AccessTools.Method(typeof(HandshakeManager), "TryReadHandshakeMessage") != null;
+    }
+
+    [HarmonyTargetMethod]
+    private static MethodBase TargetMethod()
+    {
+        return AccessTools.Method(typeof(HandshakeManager), "TryReadHandshakeMessage");
+    }
+
     [HarmonyPostfix]
-    public static void Postfix(ref InitialGameInfoMessage __instance)
+    public static void Postfix(ref HandshakeResult __result)
     {
         try
         {
-            var outcome = ProcessOtherMods(__instance.versionInfo.otherMods);
+            var remoteVersionInfo = __result.remoteVersionInfo;
+            var outcome = remoteVersionInfo.HasValue
+                ? ProcessOtherMods(remoteVersionInfo.Value.otherMods)
+                : SidecarReceiveOutcome.Missing;
             switch (outcome)
             {
                 case SidecarReceiveOutcome.Parsed:
@@ -46,7 +69,7 @@ internal static class ClientInitialInfoSidecarPatch
 
     internal static SidecarReceiveOutcome ProcessOtherMods(List<string>? list)
     {
-        // InitialGameInfoMessage 是每次加入房间的状态边界；绝不能复用前一房间的映射。
+        // 握手是每次加入房间的状态边界；绝不能复用前一房间的映射。
         ModWorkshopMap.Clear();
 
         if (list == null || list.Count == 0)

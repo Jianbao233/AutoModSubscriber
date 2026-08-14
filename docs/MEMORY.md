@@ -13,7 +13,7 @@
 
 - 主源码：`K:\杀戮尖塔mod制作\STS2_mod\AutoModSubscriber\`
 - 工坊 workspace：`STS2_mod/_workshop_workspaces/AutoModSubscriber/`（上传真源，见根 AGENTS.md 工坊表）
-- 兼容目标：public-beta v0.110.1（README 兼容矩阵为准）
+- 兼容目标：public-beta v0.111.0（README 兼容矩阵为准；v0.1.4 起 sidecar 挂载点迁移到握手阶段 `PeerVersionInfo.LocalDefault` / `HandshakeManager.TryReadHandshakeMessage`）
 
 ## 依赖（以 csproj 为准）
 
