@@ -1,18 +1,26 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Godot.NET.Sdk/4.5.1">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <OutputType>Library</OutputType>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>AutoModSubscriber</RootNamespace>
-    <AssemblyName>AutoModSubscriber</AssemblyName>
+    <!--
+      版本分发：本工程产出「实现」DLL（AutoModSubscriber.Impl.dll），不产出根目录的
+      AutoModSubscriber.dll —— 后者由 ModVersionLoader 启动器占据（见 build.ps1）。
+      装配件名加 .Impl 后缀是为了与启动器区分，避免同名装配件冲突。
+      实现里不再使用 [ModInitializer]，改由启动器反射调用 Initialize()。
+    -->
+    <AssemblyName>AutoModSubscriber.Impl</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <Version>0.1.4</Version>
-    <FileVersion>0.1.4</FileVersion>
-    <AssemblyVersion>0.1.4</AssemblyVersion>
+    <Version>0.1.5</Version>
+    <FileVersion>0.1.5</FileVersion>
+    <AssemblyVersion>0.1.5</AssemblyVersion>
+    <!-- 版本分发机制下游戏只应加载启动器，故不再直接部署到 mods/ -->
+    <CopyToGameMods Condition="'$(CopyToGameMods)' == ''">false</CopyToGameMods>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,19 +29,19 @@
 
   <ItemGroup>
     <Reference Include="sts2">
-      <HintPath>K:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll</HintPath>
+      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>K:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\0Harmony.dll</HintPath>
+      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="GodotSharp">
-      <HintPath>K:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\GodotSharp.dll</HintPath>
+      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\GodotSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Steamworks.NET">
-      <HintPath>K:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\Steamworks.NET.dll</HintPath>
+      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\Steamworks.NET.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

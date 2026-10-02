@@ -37,23 +37,49 @@ The host attaches a base64-encoded sidecar entry to `PeerVersionInfo.otherMods` 
 
 Subscription uses Steamworks.NET (`SteamUGC.SubscribeItem` + persistent `Callback<ItemInstalled_t>` / `Callback<DownloadItemResult_t>`). Mods installed via Steam Workshop can be auto-subscribed; mods placed manually under `mods/` cannot, and the dialog clearly says so.
 
+### Version distribution
+
+This mod ships as a **single Workshop item that works on every Steam branch**, so players never
+have to re-subscribe or worry about Steam delivering the wrong build:
+
+```text
+AutoModSubscriber/
+├── mod_manifest.json            # one version number, shared by all branches
+├── AutoModSubscriber.dll        # version loader (the only DLL the game loads)
+└── bin/g0.111.0/
+    └── AutoModSubscriber.Impl.dll
+```
+
+The game only loads `<mod.path>/<manifest.id>.dll`, so the loader picks the implementation
+matching the running game version (read from `release_info.json`) and initializes it.
+Because every branch receives byte-identical content with the same version number,
+multiplayer mod comparison can never fail due to Steam's branch-based delivery.
+
+See [`docs/VERSION_BUNDLE.md`](docs/VERSION_BUNDLE.md) for the full convention.
+
 ### Install
 
 Subscribe on Steam Workshop: <https://steamcommunity.com/sharedfiles/filedetails/?id=3750485606>
 
-Or manually drop the DLL + `mod_manifest.json` under `<Steam>/steamapps/common/Slay the Spire 2/mods/AutoModSubscriber/`.
+Or manually drop the whole package (loader + `mod_manifest.json` + `bin/`) under
+`<Steam>/steamapps/common/Slay the Spire 2/mods/AutoModSubscriber/`.
 
 ### Build from source
 
 Requires .NET 9 SDK and the Slay the Spire 2 game install (for referenced DLLs under `data_sts2_windows_x86_64/`).
 
 ```powershell
-.\build.ps1                  # Debug build, copies output to the game's mods folder
-.\build.ps1 -Config Release  # Release build
+.\build.ps1                    # build + package + deploy to the game's mods folder
+.\build.ps1 -NoLocalDeploy     # package only
+.\build.ps1 -StageWorkshop     # also sync the Workshop workspace content/
 ```
+
+The mod version is read from `AutoModSubscriber.csproj` and written back into
+`mod_manifest.json`, so there is a single source of truth.
 
 ### Docs
 
+- [`docs/VERSION_BUNDLE.md`](docs/VERSION_BUNDLE.md) — version distribution convention
 - [`docs/DESIGN.md`](docs/DESIGN.md) — design notes
 - [`docs/PLAN.md`](docs/PLAN.md) — implementation plan
 - [`docs/MEMORY.md`](docs/MEMORY.md) — working memory
@@ -88,23 +114,47 @@ Requires .NET 9 SDK and the Slay the Spire 2 game install (for referenced DLLs u
 
 订阅走 Steamworks.NET（`SteamUGC.SubscribeItem` + 长期持有的 `Callback<ItemInstalled_t>` / `Callback<DownloadItemResult_t>`）。Steam 创意工坊安装的模组可以被自动订阅；手动放进 `mods/` 目录的模组不能自动订阅，弹窗会明确提示。
 
+### 版本分发
+
+本模组是**一个在全部 Steam 分支上都能正常工作的工坊条目**，玩家不必重新订阅，
+也不必担心 Steam 发错包体：
+
+```text
+AutoModSubscriber/
+├── mod_manifest.json            # 只有一份版本号，所有分支共用
+├── AutoModSubscriber.dll        # 版本启动器（游戏只加载这一个 DLL）
+└── bin/g0.111.0/
+    └── AutoModSubscriber.Impl.dll
+```
+
+游戏只会加载 `<mod.path>/<manifest.id>.dll`，启动器读 `release_info.json` 得到当前
+游戏版本，挑出对应实现并初始化。因为所有分支拿到的是**字节相同、版本号相同**的内容，
+联机模组比对不会再因 Steam 的分支分发而出错。
+
+完整约定见 [`docs/VERSION_BUNDLE.md`](docs/VERSION_BUNDLE.md)。
+
 ### 安装
 
 订阅创意工坊：<https://steamcommunity.com/sharedfiles/filedetails/?id=3750485606>
 
-或手动把 DLL + `mod_manifest.json` 放到 `<Steam>/steamapps/common/Slay the Spire 2/mods/AutoModSubscriber/`。
+或手动把**整个包体**（启动器 + `mod_manifest.json` + `bin/`）放到
+`<Steam>/steamapps/common/Slay the Spire 2/mods/AutoModSubscriber/`。
 
 ### 从源码构建
 
 需要 .NET 9 SDK 以及杀戮尖塔 2 本体（用于引用 `data_sts2_windows_x86_64/` 下的 DLL）。
 
 ```powershell
-.\build.ps1                  # Debug，构建并复制到游戏 mods 目录
-.\build.ps1 -Config Release  # Release
+.\build.ps1                    # 构建 + 打包 + 部署到游戏 mods 目录
+.\build.ps1 -NoLocalDeploy     # 只打包不部署
+.\build.ps1 -StageWorkshop     # 同时同步工坊 workspace 的 content/
 ```
+
+模组版本以 `AutoModSubscriber.csproj` 为准并写回 `mod_manifest.json`，避免两处版本号不一致。
 
 ### 文档
 
+- [`docs/VERSION_BUNDLE.md`](docs/VERSION_BUNDLE.md) — 版本分发约定
 - [`docs/DESIGN.md`](docs/DESIGN.md) — 设计说明
 - [`docs/PLAN.md`](docs/PLAN.md) — 实施计划
 - [`docs/MEMORY.md`](docs/MEMORY.md) — 实现工作记忆

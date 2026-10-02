@@ -5,7 +5,7 @@
 
 ## 总体策略
 
-- 独立 Git 仓，本地路径 `K:\杀戮尖塔mod制作\STS2_mod\AutoModSubscriber\`，远端建议 `https://github.com/Jianbao233/AutoModSubscriber`
+- 独立 Git 仓，本地路径 `D:\A-Developing\main\sts2\STS2_mod\AutoModSubscriber\`，远端建议 `https://github.com/Jianbao233/AutoModSubscriber`
 - 不依赖 RitsuLib / KitLib / BaseLib；只 ref 游戏主程序集、Steamworks.NET、Harmony、Godot
 - 无 ModConfig 配置项
 - 完成后由用户手动重启，不调 `OS.Execute` / `GetTree().Quit()`
