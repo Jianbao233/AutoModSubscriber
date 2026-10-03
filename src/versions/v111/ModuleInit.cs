@@ -30,6 +30,7 @@ public static class ModuleInit
         try
         {
             GD.Print($"{LogTag} ModuleInit.Initialize() called");
+            GD.Print($"{LogTag} version bundle: {SelectedVersionDir()} selected by loader");
 
             var harmony = new Harmony($"jianbao.{ModId}");
             var patchTypes = new[]
@@ -58,6 +59,22 @@ public static class ModuleInit
         catch (Exception ex)
         {
             GD.PrintErr($"{LogTag} ModuleInit failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// 启动器选中的版本目录名（由 ModVersionLoader 通过环境变量传入）。
+    /// 启动器自身无法可靠地写游戏日志（依赖 Godot 原生绑定），所以由实现来记录。
+    /// </summary>
+    private static string SelectedVersionDir()
+    {
+        try
+        {
+            return System.Environment.GetEnvironmentVariable("AMS_LOADER_SELECTED_VERSION") ?? "<direct load>";
+        }
+        catch
+        {
+            return "<unknown>";
         }
     }
 }
