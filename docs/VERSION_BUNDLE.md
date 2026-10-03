@@ -122,5 +122,28 @@ src/versions/v111/          v0.111.0 专属：ModuleInit + 挂载点补丁 + UI 
 | beta 环境（release_info=v0.111.0）→ 挑中 `g0.111.0` | ✅ |
 | 正式版环境（release_info=v0.107.1）→ 挑中 `g0.107.1` | ✅ |
 | 打包自检（根目录唯一 DLL、每个实现都在位） | ✅ |
-| 游戏内 beta 版实际加载（v0.111.0） | ✅ 日志确认启动器与实现均被调起，3/3 补丁生效 |
-| 游戏内正式版实际加载（v0.107.1） | ⏳ 待测（本次已修 min_game_version 门槛） |
+| 游戏内 beta 实际加载（v0.111.0） | ✅ 启动器与实现均被调起，3/3 补丁生效 |
+| 游戏内正式版实际加载（v0.107.1） | ✅ 启动器与实现均被调起，3/3 补丁生效 |
+
+游戏内实测日志（正式版 v0.107.1）：
+
+```text
+[INFO] Loading assembly DLL ...\mods\AutoModSubscriber\AutoModSubscriber.dll
+[INFO] Calling initializer method of type ModVersionLoader.VersionLoader
+[AutoModSubscriber] ModuleInit.Initialize() called
+[AutoModSubscriber] version bundle: g0.107.1 selected by loader
+[AutoModSubscriber] Harmony PatchAll done: hooked 3 method(s)
+```
+
+## 踩过的坑（改这个机制前务必先读）
+
+1. **`min_game_version` 写最新版本 → 老分支整个 mod 被拒载。**
+   写 `0.111.0` 时正式版 v0.107.1 直接报错不加载，连启动器都跑不到。
+   必须写最低支持版本，`build.ps1` 已自动处理。
+2. **启动器不能用 `GD.Print` 打日志（除非能确定在游戏内）。**
+   脱离游戏进程调用是**原生崩溃**（0xC0000005），`try/catch` 抓不住。
+   现在改由实现侧记录版本选择（经 `AMS_LOADER_SELECTED_VERSION` 环境变量传递）。
+3. **实现里不要标 `[ModuleInitializer]`。**
+   它会在程序集被触碰时抢先执行，与启动器的显式调用形成双重初始化。
+4. **`sts2.dll` 的程序集版本恒为 `0.1.0.0`**，不能用它判断游戏版本，
+   必须读游戏根目录的 `release_info.json`。
