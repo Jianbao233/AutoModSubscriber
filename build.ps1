@@ -109,6 +109,17 @@ if (-not $NoLocalDeploy) {
     $localMods = Join-Path $GameDir "mods"
     if (-not (Test-Path $localMods)) { throw "mods folder not found: $localMods" }
     $target = Join-Path $localMods $ModId
+
+    # 游戏运行时 DLL 被占用，删除会失败并留下半旧半新的目录 —— 提前拦下
+    $running = Get-Process -Name "SlayTheSpire2" -ErrorAction SilentlyContinue
+    if ($running) {
+        Write-Host ""
+        Write-Host "  游戏正在运行（PID $($running.Id -join ', ')），mod 文件被占用，无法部署。" -ForegroundColor Red
+        Write-Host "  请先完全退出游戏，再重新运行本脚本。" -ForegroundColor Red
+        Write-Host "  （包体已组装好，位于 $stageRoot）" -ForegroundColor DarkGray
+        exit 1
+    }
+
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
     Copy-Item "$stageRoot\*" $target -Recurse -Force
