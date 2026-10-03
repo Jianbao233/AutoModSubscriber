@@ -76,14 +76,11 @@ public partial class AutoSubscribeDialog : Control
 
         AddTitle(root, DialogStrings.Title);
 
-        var missingOnLocal = extra.GetMissingModsOnLocal(nonGameplay: false);
-        var missingOnRemote = extra.GetMissingModsOnRemote(nonGameplay: false);
-
         AddSection(root, DialogStrings.SectionMissingOnLocal);
-        BuildMissingOnLocalSection(root, missingOnLocal);
+        BuildMissingOnLocalSection(root, extra.missingModsOnLocal);
 
         AddSection(root, DialogStrings.SectionMissingOnHost);
-        BuildMissingOnHostSection(root, missingOnRemote);
+        BuildMissingOnHostSection(root, extra.missingModsOnHost);
 
         _hintLabel = new Label
         {
@@ -91,7 +88,7 @@ public partial class AutoSubscribeDialog : Control
             CustomMinimumSize = new Vector2(0, 48),
         };
         root.AddChild(_hintLabel);
-        UpdateInitialHint(missingOnLocal);
+        UpdateInitialHint(extra);
 
         var footer = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
         footer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -240,7 +237,7 @@ public partial class AutoSubscribeDialog : Control
         root.AddChild(btnRow);
     }
 
-    private void UpdateInitialHint(IReadOnlyCollection<string> missingOnLocal)
+    private void UpdateInitialHint(ConnectionFailureExtraInfo extra)
     {
         if (!WorkshopSubscriber.Instance.IsSteamAvailable)
         {
@@ -249,7 +246,8 @@ public partial class AutoSubscribeDialog : Control
             return;
         }
 
-        if (missingOnLocal.Count == 0)
+        bool anyMissingLocal = extra.missingModsOnLocal != null && extra.missingModsOnLocal.Count > 0;
+        if (!anyMissingLocal)
         {
             _hintLabel.Text = "";
             return;
@@ -263,14 +261,16 @@ public partial class AutoSubscribeDialog : Control
 
         // host 装了本 mod。看缺失项里有几个能解析出 fileId
         int resolvable = 0;
-        foreach (var raw in missingOnLocal)
+        if (extra.missingModsOnLocal != null)
         {
-            int dash = raw.LastIndexOf('-');
-            string id = dash > 0 ? raw.Substring(0, dash) : raw;
-            if (ModWorkshopMap.TryGet(id, out var fid) && fid != 0)
-                resolvable++;
+            foreach (var raw in extra.missingModsOnLocal)
+            {
+                int dash = raw.LastIndexOf('-');
+                string id = dash > 0 ? raw.Substring(0, dash) : raw;
+                if (ModWorkshopMap.TryGet(id, out var fid) && fid != 0)
+                    resolvable++;
+            }
         }
-
         if (resolvable == 0)
         {
             _hintLabel.Text = DialogStrings.HintHostHasModNoWorkshop;

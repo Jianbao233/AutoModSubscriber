@@ -16,10 +16,12 @@ Steam 创意工坊一个条目只有一份内容。当 mod 需要针对不同游
 
 ```text
 AutoModSubscriber/                      # 工坊条目内容 —— 所有分支字节完全相同
-├── mod_manifest.json                   # 只有一份版本号，所有分支共用
+├── mod_manifest.json                   # 一份版本号 + min_game_version = 最低支持版本
 ├── AutoModSubscriber.dll               # ModVersionLoader 启动器（游戏只加载这一个）
 └── bin/
-    └── g0.111.0/                       # 按游戏版本存放实现
+    ├── g0.107.1/                       # 正式版（Latest Version 分支）实现
+    │   └── AutoModSubscriber.Impl.dll
+    └── g0.111.0/                       # public-beta 分支实现
         └── AutoModSubscriber.Impl.dll
 ```
 
@@ -30,77 +32,95 @@ AutoModSubscriber/                      # 工坊条目内容 —— 所有分支
 **关键：两套代码装在同一个包里、共用同一份 `mod_manifest.json`。**
 所以不管 Steam 发的是哪一版，发到的都是同一个包、同一个版本号 —— 联机比对永远一致。
 
+## 当前支持的游戏版本
+
+| 游戏分支 | 版本 | 实现目录 | 挂载点 |
+|---|---|---|---|
+| Latest Version（正式版） | v0.107.1 | `bin/g0.107.1/` | `InitialGameInfoMessage.Basic` / `.Deserialize` |
+| public-beta | v0.111.0 | `bin/g0.111.0/` | `PeerVersionInfo.LocalDefault` / `HandshakeManager.TryReadHandshakeMessage` |
+
+两份实现必须分开，因为挂载点 API **互不兼容**：
+
+- v0.111.0 移除了 `InitialGameInfoMessage.versionInfo` 字段 → 老代码编译不过；
+- v0.107.x 没有 `HandshakeManager` → 新代码编译不过。
+
 ## 硬性约定（务必遵守）
 
-1. **`mod_manifest.json` 的 `version` 在所有版本目录之间必须完全一致。**
+1. **`mod_manifest.json` 的 `version` 在所有实现之间必须完全一致。**
    实现 A 写 `0.1.5-beta`、实现 B 写 `0.1.5` 的话，联机比对依然会不匹配，等于白做。
-   现在 `build.ps1` 会从 `.csproj` 的 `<Version>` 统一写回 manifest，**csproj 是唯一真源**。
-2. **根目录只能有一个 DLL**，且必须叫 `<ModId>.dll`（启动器）。`build.ps1` 会自检。
-3. **实现 DLL 的装配件名必须是 `<ModId>.Impl`**，与启动器区分，避免同名装配件冲突。
-4. **实现里不要用 `[ModInitializer]`**，入口交给启动器反射调用（签名：`public static void Initialize()`）。
-5. `min_game_version` 写**最低支持版本**，不要写最新版本 —— 否则老分支会被游戏自身的
-   版本检查挡下（这正是 RitsuLib 在打包时把 `min_game_version` 压到最低 target 的原因）。
+   `build.ps1` 会从 `.csproj` 的 `<Version>` 统一写回，**csproj 是唯一真源**。
+2. **`min_game_version` 必须写「最低支持版本」，不能写最新版本。**
+   实测教训：写 `0.111.0` 时，正式版 v0.107.1 直接拒绝加载整个 mod：
+   ```
+   [ERROR] Tried to load mod with id AutoModSubscriber, but its declared
+           min game version 0.111.0 is higher than the current game version v0.107.1
+   ```
+   `build.ps1` 会自动取所有实现里最低的游戏版本写入。
+3. **根目录只能有一个 DLL**，且必须叫 `<ModId>.dll`（启动器）。`build.ps1` 会自检。
+4. **实现 DLL 的装配件名必须是 `<ModId>.Impl`**，与启动器区分，避免同名装配件冲突。
+5. **实现里不要用 `[ModInitializer]`**，入口交给启动器反射调用
+   （签名：`public static void Initialize()`）。
 
 ## 目录命名
 
-`bin/g<游戏版本>`，点分版本号，例如：
-
-| 游戏版本 | 目录名 |
-|---|---|
-| v0.111.0 | `bin/g0.111.0` |
-| v0.110.1 | `bin/g0.110.1` |
-| 未来补丁 v0.111.5（无专用实现时） | 回退到 `bin/g0.111.0` |
+`bin/g<游戏版本>`，点分版本号，例如 `bin/g0.107.1`、`bin/g0.111.0`。
 
 选择顺序（见 `ModVersionLoader/VersionLoader.cs`）：
 1. 精确命中游戏版本目录；
-2. 否则取**不高于**游戏版本的最大者；
+2. 否则取**不高于**游戏版本的最大者（例：游戏 v0.110.1 会回退到 `g0.107.1`）；
 3. 否则退回 `bin/latest`；
 4. 游戏版本读不出来时取可用的最高版本；
 5. 都不成立 → **显式报错**，绝不静默跑错版本。
 
+## 源码结构（多实现）
+
+```text
+src/                        共享代码（协议编解码、订阅、UI 控件，各版本一致）
+src/versions/v107/          v0.107.x 专属：ModuleInit + 挂载点补丁 + UI
+src/versions/v111/          v0.111.0 专属：ModuleInit + 挂载点补丁 + UI + Compat
+```
+
+`AutoModSubscriber.csproj` 用 `/p:GameCompat=<v107|v111>` 选择版本目录，
+用 `/p:Sts2DataDir=<该版本 SDK 目录>` 选择编译所对的游戏 DLL。
+
+游戏 SDK 按版本存档在 `D:\A-Developing\tools\sts2_sdk_by_version\`：
+
+| 目录 | 来源 |
+|---|---|
+| `v0.107.1` | 正式版分支在装时从游戏目录抓取（真实 SDK） |
+| `v0.108` / `v0.109.0` / `v0.110.1` / `v0.111.0` | GDRE 快照 `tools/SL2_<版本>/.godot/mono/temp/bin/Debug/` |
+
 ## 新增一个游戏版本
 
-1. 在实现工程里针对新 API 做适配（当前实现是 v0.111.0 的握手挂载点）；
-2. 把新实现放进 `bin/g<新版本>/AutoModSubscriber.Impl.dll`；
-3. 老目录**保留不删** —— 老分支玩家仍然需要它。
-
-本机开发时，`build.ps1` 会自动按当前游戏版本放进对应目录（只放当前这一份）。
+1. 把该版本游戏的 `sts2.dll` 等存档到 `tools/sts2_sdk_by_version/v<版本>/`；
+2. 在 `src/versions/` 下新建版本目录（从最接近的现有版本复制，改挂载点）；
+3. 在 `build.ps1` 的 `$Targets` 里加一行；
+4. 跑一次 `build.ps1`，自检会确认包体结构正确。
 
 ## 构建与本地测试
 
 ```powershell
-# 构建 + 打包 + 部署到本机 mods/（供 fastmp 双开联机测试）
-.\build.ps1
-
-# 只打包，不部署
-.\build.ps1 -NoLocalDeploy
-
-# 额外同步到工坊 workspace 的 content/（不自动上传）
-.\build.ps1 -StageWorkshop
+.\build.ps1                    # 编译全部实现 + 打包 + 部署到本机 mods/
+.\build.ps1 -NoLocalDeploy     # 只打包
+.\build.ps1 -StageWorkshop     # 额外同步工坊 workspace 的 content/
 ```
 
-产物：`build\mods\AutoModSubscriber\`，同时复制到
-`F:\Steam\steamapps\common\Slay the Spire 2\mods\AutoModSubscriber\`。
+产物：`build\mods\AutoModSubscriber\`。
 
-> **注意**：本地副本会遮蔽工坊同版本副本（游戏 `RemoveDisabledMods` 对
-> 同 id 同版本的本地/工坊两份会禁用工坊那份）。所以本机测试期间，
-> 联机双方都应使用同一份本地部署，或等新版本上传工坊后再联机。
+> 游戏运行时 DLL 被占用，脚本会提前报错退出（不会留下半旧半新的目录）。
 
 ## 启动器位置
 
 `D:\A-Developing\main\sts2\tools\ModVersionLoader\`（工具区，跨项目复用）。
-其他 mod 要接入时：
+其他 mod 接入：`dotnet build -c Release /p:LoaderAssemblyName=<ModId> /p:Sts2DataDir=<SDK>`
 
-```powershell
-dotnet build -c Release /p:LoaderAssemblyName=<ModId> /p:Sts2DataDir=<游戏 data 目录>
-```
-
-## 验证情况（2026-09-16）
+## 验证情况（2026-10-03）
 
 | 验证项 | 结果 |
 |---|---|
-| 版本解析 / 目录挑选逻辑自检（19 项） | 全部通过（`ModVersionLoader.Tests\logic`） |
-| 模拟游戏加载：启动器 → 挑版本 → 加载实现 → 定位入口 | 通过（`ModVersionLoader.Tests\harness`，`--dry`） |
-| 实际日志 | `[AutoModSubscriber/Loader] game 0.111.0.0 -> g0.111.0 (AutoModSubscriber.Impl.dll)` |
-| 打包自检（根目录唯一 DLL） | 通过 |
-| 游戏内实际联机 | **待用户手动测试** |
+| 版本解析 / 目录挑选逻辑自检（19 项） | ✅ 全部通过 |
+| beta 环境（release_info=v0.111.0）→ 挑中 `g0.111.0` | ✅ |
+| 正式版环境（release_info=v0.107.1）→ 挑中 `g0.107.1` | ✅ |
+| 打包自检（根目录唯一 DLL、每个实现都在位） | ✅ |
+| 游戏内 beta 版实际加载（v0.111.0） | ✅ 日志确认启动器与实现均被调起，3/3 补丁生效 |
+| 游戏内正式版实际加载（v0.107.1） | ⏳ 待测（本次已修 min_game_version 门槛） |

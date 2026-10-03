@@ -23,25 +23,60 @@
     <CopyToGameMods Condition="'$(CopyToGameMods)' == ''">false</CopyToGameMods>
   </PropertyGroup>
 
+  <!--
+    多版本实现
+    ==========
+    同一个工程按 GameCompat 编译出不同游戏版本可用的实现：
+
+      src/                    共享代码（协议编解码、订阅、UI 控件等，各版本一致）
+      src/versions/v107/      游戏 v0.107.x 专属：InitialGameInfoMessage 挂载点
+      src/versions/v111/      游戏 v0.111.0 专属：PeerVersionInfo 握手挂载点
+
+    版本专属文件之所以必须分开，是因为挂载点所依赖的 API 不兼容：
+    v0.111.0 移除了 InitialGameInfoMessage.versionInfo 字段，老代码无法编译；
+    反过来新代码引用的 HandshakeManager 在 v0.107.x 不存在。
+
+    用法：
+      dotnet build /p:GameCompat=v111 /p:Sts2DataDir=<该版本 SDK 目录>
+  -->
+  <PropertyGroup>
+    <GameCompat Condition="'$(GameCompat)' == ''">v111</GameCompat>
+    <Sts2DataDir Condition="'$(Sts2DataDir)' == ''">F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</Sts2DataDir>
+    <VersionSourceDir>$(MSBuildProjectDirectory)\src\versions\$(GameCompat)</VersionSourceDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 共享代码；版本目录单独引入 -->
+    <Compile Remove="src\versions\**\*.cs" />
+    <Compile Include="$(VersionSourceDir)\**\*.cs" />
+  </ItemGroup>
+
+  <Target Name="ValidateGameCompat" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(VersionSourceDir)\ModuleInit.cs')"
+           Text="GameCompat='$(GameCompat)' 没有对应的版本源码目录：$(VersionSourceDir)" />
+    <Error Condition="!Exists('$(Sts2DataDir)\sts2.dll')"
+           Text="Sts2DataDir='$(Sts2DataDir)' 下找不到 sts2.dll。" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="sts2">
-      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll</HintPath>
+      <HintPath>$(Sts2DataDir)\sts2.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\0Harmony.dll</HintPath>
+      <HintPath>$(Sts2DataDir)\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="GodotSharp">
-      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\GodotSharp.dll</HintPath>
+      <HintPath>$(Sts2DataDir)\GodotSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Steamworks.NET">
-      <HintPath>F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\Steamworks.NET.dll</HintPath>
+      <HintPath>$(Sts2DataDir)\Steamworks.NET.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
