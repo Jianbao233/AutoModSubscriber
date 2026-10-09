@@ -51,15 +51,37 @@ AutoModSubscriber/                      # 工坊条目内容 —— 所有分支
    `build.ps1` 会从 `.csproj` 的 `<Version>` 统一写回，**csproj 是唯一真源**。
 2. **`min_game_version` 必须写「最低支持版本」，不能写最新版本。**
    实测教训：写 `0.111.0` 时，正式版 v0.107.1 直接拒绝加载整个 mod：
+
    ```
    [ERROR] Tried to load mod with id AutoModSubscriber, but its declared
            min game version 0.111.0 is higher than the current game version v0.107.1
    ```
-   `build.ps1` 会自动取所有实现里最低的游戏版本写入。
-3. **根目录只能有一个 DLL**，且必须叫 `<ModId>.dll`（启动器）。`build.ps1` 会自检。
-4. **实现 DLL 的装配件名必须是 `<ModId>.Impl`**，与启动器区分，避免同名装配件冲突。
-5. **实现里不要用 `[ModInitializer]`**，入口交给启动器反射调用
-   （签名：`public static void Initialize()`）。
+
+   **这条在游戏源码里的确切行为**（`ModManager.TryLoadMod`）：
+
+   ```csharp
+   else if (!flag3)   // flag3 = 游戏版本 >= min_game_version
+   {
+       Log.Error($"... min game version ... is higher than the current game version ...");
+       mod.state = ModLoadState.Failed;   // 直接判失败
+   }
+   ```
+
+   这段判断发生在**加载程序集之前**（程序集加载在同一方法的更后面），所以
+   `mod.state = Failed` 之后整个 mod 被跳过 —— **连根目录的启动器都不会被加载**，
+   日志里不会出现任何 `[<ModId>/Loader]` 输出，只有那一行 ERROR。
+   排查"启动器完全没日志"时，第一件事就是查 `min_game_version`。
+
+3. **仓库里的 `mod_manifest.json` 必须与构建真源一致。**
+   它是别人克隆后看到、也可能被手动打包上传的那一份；若停留在旧值（尤其
+   `min_game_version` 偏高），手动打包就会踩上面那条。`build.ps1` 现在会**校验**
+   仓库 manifest 的 `version` / `min_game_version`，不一致直接报错退出。
+
+4. **根目录只能有一个 DLL**，且必须叫 `<ModId>.dll`（启动器）。`build.ps1` 会自检。
+5. **实现 DLL 的装配件名必须是 `<ModId>.Impl`**，与启动器区分，避免同名装配件冲突。
+6. **实现里不要用 `[ModInitializer]`**，入口交给启动器反射调用
+   （签名：`public static void Initialize()`）。也**不要**用 `[ModuleInitializer]` ——
+   它会在程序集被触碰时抢先执行，与启动器的显式调用形成双重初始化。
 
 ## 目录命名
 

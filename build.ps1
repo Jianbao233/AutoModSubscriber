@@ -58,6 +58,29 @@ $minGameVersion = ($Targets | ForEach-Object { $_.VersionDir -replace '^g', '' }
                    Sort-Object { [version]$_ } | Select-Object -First 1)
 Write-Host "min_game_version: $minGameVersion  (最低支持版本)" -ForegroundColor Cyan
 
+# --- 1b. 校验仓库 manifest 与真源一致 ----------------------------------------
+# 仓库里的 mod_manifest.json 是别人克隆后看到、也可能被手动打包上传的那一份。
+# 它若与这里的真源不一致（尤其 min_game_version 偏高），正式版会**整包拒载**
+# （ModManager.TryLoadMod 在加载程序集之前就判 Failed，连启动器都跑不到）。
+$manifestSrc = Join-Path $ProjectRoot "mod_manifest.json"
+$srcManifest = Get-Content $manifestSrc -Raw | ConvertFrom-Json
+$drift = @()
+if ($srcManifest.version -ne $modVersion) {
+    $drift += "version：仓库=$($srcManifest.version) / csproj=$modVersion"
+}
+if ($srcManifest.min_game_version -ne $minGameVersion) {
+    $drift += "min_game_version：仓库=$($srcManifest.min_game_version) / 应为=$minGameVersion"
+}
+if ($drift.Count -gt 0) {
+    Write-Host ""
+    Write-Host "  仓库 mod_manifest.json 与构建真源不一致：" -ForegroundColor Red
+    $drift | ForEach-Object { Write-Host "    - $_" -ForegroundColor Red }
+    Write-Host "  请先把仓库 manifest 改成上面的值再构建。" -ForegroundColor Red
+    Write-Host "  （min_game_version 偏高会让低于该版本的游戏分支整包拒载本 mod）" -ForegroundColor DarkGray
+    exit 1
+}
+Write-Host "仓库 manifest 校验通过（version / min_game_version 一致）" -ForegroundColor Green
+
 # --- 2. 组装目录 -------------------------------------------------------------
 $stageRoot = Join-Path $ProjectRoot "build\mods\$ModId"
 if (Test-Path $stageRoot) { Remove-Item $stageRoot -Recurse -Force }
@@ -109,7 +132,7 @@ Copy-Item $loaderDll (Join-Path $stageRoot "$ModId.dll") -Force
 Write-Host "  OK  $ModId.dll ($((Get-Item $loaderDll).Length) bytes)" -ForegroundColor Green
 
 # --- 5. 写 manifest（版本 + 最低支持版本） -----------------------------------
-$manifestSrc = Join-Path $ProjectRoot "mod_manifest.json"
+# $manifestSrc / $srcManifest 已在 1b 步读取并校验过，这里复用
 $manifest = Get-Content $manifestSrc -Raw | ConvertFrom-Json
 $manifest.version = $modVersion
 $manifest.min_game_version = $minGameVersion
