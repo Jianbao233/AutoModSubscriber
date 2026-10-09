@@ -136,7 +136,9 @@ src/versions/v111/          v0.111.0 专属：ModuleInit + 挂载点补丁 + UI 
 `D:\A-Developing\main\sts2\tools\ModVersionLoader\`（工具区，跨项目复用）。
 其他 mod 接入：`dotnet build -c Release /p:LoaderAssemblyName=<ModId> /p:Sts2DataDir=<SDK>`
 
-## 验证情况（2026-10-03）
+## 验证情况
+
+### 2026-10-03：双分支游戏内实测（本地部署）
 
 | 验证项 | 结果 |
 |---|---|
@@ -147,21 +149,33 @@ src/versions/v111/          v0.111.0 专属：ModuleInit + 挂载点补丁 + UI 
 | 游戏内 beta 实际加载（v0.111.0） | ✅ 启动器与实现均被调起，3/3 补丁生效 |
 | 游戏内正式版实际加载（v0.107.1） | ✅ 启动器与实现均被调起，3/3 补丁生效 |
 
-游戏内实测日志（正式版 v0.107.1）：
+### 2026-10-10：双分支实测（**真实工坊分发**，本地部署移开）
+
+发布 v0.1.5 后，把本地部署移开、只用 Steam 工坊订阅副本，两个分支各跑一次：
+
+| 分支 | 加载来源 | 挑中实现 | 补丁 |
+|---|---|---|---|
+| public-beta v0.111.0 | 工坊 `3750485606` | `g0.111.0` | 3/3 ✅ |
+| 正式版 v0.107.1 | 工坊 `3750485606` | `g0.107.1` | 3/3 ✅ |
+
+**同一份工坊包体在两个分支各自挑到正确实现，无拒载、无版本错误。**
+
+工坊实测日志（正式版 v0.107.1）：
 
 ```text
-[INFO] Loading assembly DLL ...\mods\AutoModSubscriber\AutoModSubscriber.dll
+[INFO] Loading assembly DLL ...\workshop\content\2868840\3750485606\AutoModSubscriber.dll
 [INFO] Calling initializer method of type ModVersionLoader.VersionLoader
 [AutoModSubscriber] ModuleInit.Initialize() called
 [AutoModSubscriber] version bundle: g0.107.1 selected by loader
 [AutoModSubscriber] Harmony PatchAll done: hooked 3 method(s)
+* Auto Mod Subscriber [AutoModSubscriber] (0.1.5) workshopId=3750485606
 ```
 
 ## 踩过的坑（改这个机制前务必先读）
 
 1. **`min_game_version` 写最新版本 → 老分支整个 mod 被拒载。**
    写 `0.111.0` 时正式版 v0.107.1 直接报错不加载，连启动器都跑不到。
-   必须写最低支持版本，`build.ps1` 已自动处理。
+   必须写最低支持版本，`build.ps1` 已自动处理**并校验仓库 manifest**。
 2. **启动器不能用 `GD.Print` 打日志（除非能确定在游戏内）。**
    脱离游戏进程调用是**原生崩溃**（0xC0000005），`try/catch` 抓不住。
    现在改由实现侧记录版本选择（经 `AMS_LOADER_SELECTED_VERSION` 环境变量传递）。
@@ -169,3 +183,18 @@ src/versions/v111/          v0.111.0 专属：ModuleInit + 挂载点补丁 + UI 
    它会在程序集被触碰时抢先执行，与启动器的显式调用形成双重初始化。
 4. **`sts2.dll` 的程序集版本恒为 `0.1.0.0`**，不能用它判断游戏版本，
    必须读游戏根目录的 `release_info.json`。
+
+## 共用同一 loader 的项目
+
+`tools\ModVersionLoader` 被以下项目共用（改 loader 会同时影响它们）：
+
+| 项目 | 实现目录 | 说明 |
+|---|---|---|
+| `AutoModSubscriber` | `g0.107.1` + `g0.111.0` | 挂载点 API 不兼容，必须两份 |
+| `LoadOrderManager` | `g0.107.1` | 纯 UI 工具，不碰握手 API，一份够用（beta 实测回退加载正常） |
+| `PhoneticEnglish` | `g0.107.1` + `g0.111.0` | |
+| `StandardSeedHost` | `g0.107.1` + `g0.111.0` | |
+
+**判断"要不要多份实现"的标准**：看实现是否引用随游戏版本变动的 API
+（联机握手、`InitialGameInfoMessage`、`PeerVersionInfo` 等）。不引用的话，
+一份最低版本实现 + 门槛写最低，就能在所有分支上回退加载。
